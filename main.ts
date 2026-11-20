@@ -17,7 +17,13 @@
 // Outside the grader's container, run it with:
 //   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
 
-import { copyFileSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -44,8 +50,21 @@ if (!caption.includes(PLAY_CODE)) throw new Error('caption lost the play code');
 
 const post = JSON.parse(readFileSync(join(here, 'POST.json'), 'utf8'));
 const postUrl = typeof post.url === 'string' ? post.url : '';
+if (postUrl && !/^https:\/\/x\.com\/[^/]+\/status\/\d+$/.test(postUrl)) {
+  throw new Error(`POST.json url is not an X post address: ${postUrl}`);
+}
 
-copyFileSync(join(here, IMAGE), join(outputDir, IMAGE));
+// The picture is half the entry: it must be there and be the PNG it claims.
+const imagePath = join(here, IMAGE);
+if (!existsSync(imagePath)) throw new Error(`meme picture missing: ${IMAGE}`);
+const pngMagic = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+const head = readFileSync(imagePath).subarray(0, pngMagic.length);
+if (!pngMagic.every((b, i) => head[i] === b)) {
+  throw new Error(`${IMAGE} is not a PNG file`);
+}
+
+mkdirSync(outputDir, { recursive: true });
+copyFileSync(imagePath, join(outputDir, IMAGE));
 writeFileSync(
   join(outputDir, 'post.json'),
   JSON.stringify(
